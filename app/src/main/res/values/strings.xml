@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Custom OS Emulator</string>
+    <string-array name="guest_architectures">
+        <item>x86_64</item>
+        <item>x86</item>
+        <item>arm</item>
+        <item>aarch64</item>
+        <item>custom</item>
+    </string-array>
+</resources>
