@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/editVmName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="Tên máy ảo"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Spinner
+        android:id="@+id/spinnerArch"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:entries="@array/guest_architectures"
+        app:layout_constraintTop_toBottomOf="@id/editVmName"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/labelRam"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="RAM (MB)"
+        app:layout_constraintTop_toBottomOf="@id/spinnerArch"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <SeekBar
+        android:id="@+id/seekRam"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:max="8192"
+        android:progress="2048"
+        app:layout_constraintTop_toBottomOf="@id/labelRam"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/labelVcpu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Số lõi CPU ảo"
+        app:layout_constraintTop_toBottomOf="@id/seekRam"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <SeekBar
+        android:id="@+id/seekVcpu"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:max="8"
+        android:progress="2"
+        app:layout_constraintTop_toBottomOf="@id/labelVcpu"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Switch
+        android:id="@+id/switchGpu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tăng tốc đồ họa (VirGL/Vulkan)"
+        android:checked="true"
+        app:layout_constraintTop_toBottomOf="@id/seekVcpu"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Switch
+        android:id="@+id/switchNetwork"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Mạng ảo (user-mode NAT)"
+        app:layout_constraintTop_toBottomOf="@id/switchGpu"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/buttonPickImage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Chọn file .iso / .img hệ điều hành"
+        app:layout_constraintTop_toBottomOf="@id/switchNetwork"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/textSelectedImage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Chưa chọn file"
+        app:layout_constraintTop_toBottomOf="@id/buttonPickImage"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/buttonStart"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Khởi động máy ảo"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
