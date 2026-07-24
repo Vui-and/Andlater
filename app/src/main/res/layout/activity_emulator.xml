@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <SurfaceView
+        android:id="@+id/surfaceVmScreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Invisible focus target: gaining focus pops the system soft keyboard,
+         and its key events get forwarded to the guest OS. -->
+    <EditText
+        android:id="@+id/editVirtualKeyboardProxy"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:importantForAutofill="no" />
+
+    <Button
+        android:id="@+id/buttonToggleKeyboard"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="12dp"
+        android:alpha="0.7"
+        android:text="⌨" />
+
+</FrameLayout>
