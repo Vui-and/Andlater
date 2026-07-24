@@ -1,0 +1,192 @@
+name: Build Custom OS Emulator APK
+
+# Triggers manually or on push. Building QEMU + box86/box64 from source is
+# slow (~30-60+ min combined) — this is expected for a from-scratch native
+# build, not a workflow bug.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  ANDROID_NDK_VERSION: "26.3.11579264"
+  ANDROID_API_LEVEL: "26"
+  TARGET_ABI: "arm64-v8a"
+  TARGET_TRIPLE: "aarch64-linux-android"
+
+jobs:
+  # ---------------------------------------------------------------------
+  # 1. Build QEMU system emulation binaries for Android (arm64 host).
+  #    Real upstream source: https://github.com/qemu/qemu
+  # ---------------------------------------------------------------------
+  build-qemu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install host build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config python3-pip glib2.0-dev \
+            libpixman-1-dev meson
+
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK ${{ env.ANDROID_NDK_VERSION }}
+        run: |
+          echo "y" | sdkmanager --install "ndk;${{ env.ANDROID_NDK_VERSION }}"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${{ env.ANDROID_NDK_VERSION }}" >> "$GITHUB_ENV"
+
+      - name: Clone QEMU (real upstream source)
+        run: |
+          git clone --depth 1 --branch v9.0.0 https://github.com/qemu/qemu.git
+
+      - name: Cross-compile QEMU for ${{ env.TARGET_ABI }}
+        working-directory: qemu
+        run: |
+          TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
+          export CC="$TOOLCHAIN/bin/${{ env.TARGET_TRIPLE }}${{ env.ANDROID_API_LEVEL }}-clang"
+          export CXX="$TOOLCHAIN/bin/${{ env.TARGET_TRIPLE }}${{ env.ANDROID_API_LEVEL }}-clang++"
+          # NOTE: QEMU's ./configure needs a real --cross-prefix / meson
+          # cross file for Android; this is the minimal illustrative
+          # invocation. Expect to iterate on configure flags (audio/display
+          # backends, disabled targets, etc) once building against a real
+          # device profile.
+          ./configure \
+            --target-list=x86_64-softmmu,i386-softmmu,arm-softmmu,aarch64-softmmu \
+            --cross-prefix="$TOOLCHAIN/bin/${{ env.TARGET_TRIPLE }}-" \
+            --disable-werror \
+            --disable-docs \
+            --disable-gtk \
+            --disable-sdl \
+            --enable-tcg \
+            --enable-virglrenderer \
+            --static
+          make -j"$(nproc)"
+
+      - name: Collect QEMU binaries
+        run: |
+          mkdir -p artifacts/qemu
+          cp qemu/build/qemu-system-x86_64 artifacts/qemu/ || true
+          cp qemu/build/qemu-system-i386 artifacts/qemu/ || true
+          cp qemu/build/qemu-system-arm artifacts/qemu/ || true
+          cp qemu/build/qemu-system-aarch64 artifacts/qemu/ || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qemu-binaries
+          path: artifacts/qemu
+
+  # ---------------------------------------------------------------------
+  # 2. Build Box86 (32-bit) + Box64 (64-bit) dynamic binary translators.
+  #    Real upstream sources:
+  #      https://github.com/ptitSeb/box86
+  #      https://github.com/ptitSeb/box64
+  # ---------------------------------------------------------------------
+  build-box86-box64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install host build deps
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
+
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK
+        run: |
+          echo "y" | sdkmanager --install "ndk;${{ env.ANDROID_NDK_VERSION }}"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${{ env.ANDROID_NDK_VERSION }}" >> "$GITHUB_ENV"
+
+      - name: Clone box64
+        run: git clone --depth 1 https://github.com/ptitSeb/box64.git
+
+      - name: Build box64 for Android arm64
+        working-directory: box64
+        run: |
+          cmake -B build -GNinja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ env.TARGET_ABI }} \
+            -DANDROID_PLATFORM=android-${{ env.ANDROID_API_LEVEL }} \
+            -DANDROID=1 \
+            -DARM_DYNAREC=OFF
+          cmake --build build -j"$(nproc)"
+
+      - name: Clone box86
+        run: git clone --depth 1 https://github.com/ptitSeb/box86.git
+
+      - name: Build box86 for Android arm64
+        working-directory: box86
+        run: |
+          cmake -B build -GNinja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ env.TARGET_ABI }} \
+            -DANDROID_PLATFORM=android-${{ env.ANDROID_API_LEVEL }} \
+            -DANDROID=1 \
+            -DARM_DYNAREC=OFF
+          cmake --build build -j"$(nproc)"
+
+      - name: Collect box86/64 binaries
+        run: |
+          mkdir -p artifacts/box
+          cp box64/build/box64 artifacts/box/ || true
+          cp box86/build/box86 artifacts/box/ || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: box-binaries
+          path: artifacts/box
+
+  # ---------------------------------------------------------------------
+  # 3. Assemble the APK: pull in the prebuilt binaries from jobs 1-2,
+  #    place them under jniLibs/arm64-v8a, build native customos_hal via
+  #    the app's own CMake/NDK build, then run Gradle.
+  # ---------------------------------------------------------------------
+  assemble-apk:
+    needs: [build-qemu, build-box86-box64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qemu-binaries
+          path: app/src/main/jniLibs/${{ env.TARGET_ABI }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: box-binaries
+          path: app/src/main/jniLibs/${{ env.TARGET_ABI }}
+
+      - name: Mark native payload executables
+        run: chmod +x app/src/main/jniLibs/${{ env.TARGET_ABI }}/* || true
+
+      # Optional: embed a default custom OS image if one is checked into
+      # the repo (e.g. via git-lfs) at assets/default-os.img. Skipped if
+      # absent - users can still import their own image at runtime via
+      # MainActivity's file picker (requirement #2).
+      - name: Stage default OS image (if present)
+        run: |
+          mkdir -p app/src/main/assets
+          if [ -f default-os-image/default-os.img ]; then
+            cp default-os-image/default-os.img app/src/main/assets/
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK + NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK ${{ env.ANDROID_NDK_VERSION }}
+        run: echo "y" | sdkmanager --install "ndk;${{ env.ANDROID_NDK_VERSION }}"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Assemble release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: custom-os-emulator-apk
+          path: app/build/outputs/apk/release/*.apk
